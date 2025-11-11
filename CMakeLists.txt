@@ -19,3 +19,10 @@ set(TMC_API_SOURCES
 )
 
 add_executable(${PROJECT_NAME} ${SRC} ${TMC_API_SOURCES})
+
+find_library(GPIOD_LIB gpiod)
+if (NOT GPIOD_LIB)
+  message(FATAL_ERROR "libgpiod not found, install with: sudo apt install libgpiod-dev")
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE ${GPIOD_LIB})
