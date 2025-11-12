@@ -1,39 +1,49 @@
 cmake_minimum_required(VERSION 3.10)
-project(tmc_driver C CXX)
+project(tmc_driver LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(
-  include
-  third_party/TMC-API
-  third_party/TMC-API/tmc
-  third_party/TMC-API/tmc/helpers
-  third_party/TMC-API/tmc/ic
-  third_party/TMC-API/tmc/ic/TMC5160
+if(DEFINED CATKIN_INSTALL_INTO_PREFIX_ROOT)
+  message(STATUS "CATKIN_INSTALL_INTO_PREFIX_ROOT=${CATKIN_INSTALL_INTO_PREFIX_ROOT} (ignored; package uses ament)")
+endif()
+
+find_package(ament_cmake REQUIRED)
+
+set(TMC_DRIVER_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/spi_bus.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tmc5160.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tmc_driver.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tmc_spi_registry.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TMC-API/tmc/ic/TMC5160/TMC5160.c
 )
 
-file(GLOB SRC CONFIGURE_DEPENDS src/*.cpp)
-set(TMC_API_SOURCES
-  third_party/TMC-API/tmc/ic/TMC5160/TMC5160.c
+add_executable(main ${TMC_DRIVER_SOURCES})
+target_compile_definitions(main PRIVATE TMC5160_IC_CACHE_COUNT=4)
+target_include_directories(main
+  PRIVATE
+    include
+    third_party/TMC-API
+    third_party/TMC-API/tmc
+    third_party/TMC-API/tmc/helpers
+    third_party/TMC-API/tmc/ic
+    third_party/TMC-API/tmc/ic/TMC5160
 )
-
-add_executable(${PROJECT_NAME} ${SRC} ${TMC_API_SOURCES})
-target_compile_definitions(${PROJECT_NAME} PRIVATE TMC5160_IC_CACHE_COUNT=4)
 
 find_library(GPIOD_LIB gpiod)
-if (NOT GPIOD_LIB)
+if(NOT GPIOD_LIB)
   message(FATAL_ERROR "libgpiod not found, install with: sudo apt install libgpiod-dev")
 endif()
+target_link_libraries(main PRIVATE ${GPIOD_LIB})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE ${GPIOD_LIB})
+install(TARGETS main
+  DESTINATION lib/${PROJECT_NAME}
+)
 
-# Optional ROS 2 / ament_cmake integration.
-# If ament_cmake is available (e.g. building with colcon), export includes and call ament_package().
-find_package(ament_cmake QUIET)
-if(ament_cmake_FOUND)
-  ament_export_include_directories(include)
-  install(TARGETS ${PROJECT_NAME}
-          RUNTIME DESTINATION lib/${PROJECT_NAME})
-  ament_package()
-endif()
+install(DIRECTORY include/
+  DESTINATION include
+)
+
+ament_export_include_directories(include)
+ament_package()
