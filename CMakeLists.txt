@@ -19,9 +19,9 @@ set(TMC_DRIVER_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/TMC-API/tmc/ic/TMC5160/TMC5160.c
 )
 
-add_executable(main ${TMC_DRIVER_SOURCES})
-target_compile_definitions(main PRIVATE TMC5160_IC_CACHE_COUNT=4)
-target_include_directories(main
+add_executable(test_drivers ${TMC_DRIVER_SOURCES})
+target_compile_definitions(test_drivers PRIVATE TMC5160_IC_CACHE_COUNT=4)
+target_include_directories(test_drivers
   PRIVATE
     include
     third_party/TMC-API
@@ -35,9 +35,9 @@ find_library(GPIOD_LIB gpiod)
 if(NOT GPIOD_LIB)
   message(FATAL_ERROR "libgpiod not found, install with: sudo apt install libgpiod-dev")
 endif()
-target_link_libraries(main PRIVATE ${GPIOD_LIB})
+target_link_libraries(test_drivers PRIVATE ${GPIOD_LIB})
 
-install(TARGETS main
+install(TARGETS test_drivers
   DESTINATION lib/${PROJECT_NAME}
 )
 
