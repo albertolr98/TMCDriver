@@ -56,8 +56,7 @@ bool TMC5160::init()
 
     // Reconfigurar registros principales para un motor NEMA17 de 2.5A RMS
     tmc5160_writeRegister(icID_, TMC5160_GCONF, 0x00000004);           // StealthChop + interpolation
-    tmc5160_writeRegister(icID_, TMC5160_CHOPCONF, 0x10410153);        // SpreadCycle, MRES=256, vsense=0 (325mV)
-    tmc5160_writeRegister(icID_, TMC5160_PWMCONF, 0xC40C001E);         // Ajustes StealthChop por defecto
+    tmc5160_writeRegister(icID_, TMC5160_CHOPCONF, 0x000100C3);        // SpreadCycle base (16 µsteps) for suavidad
     tmc5160_writeRegister(icID_, TMC5160_IHOLD_IRUN, 0x00061908);      // IHOLD=8 (~0.87A), IRUN=25 (~2.5A), IHOLDDELAY=6
     tmc5160_writeRegister(icID_, TMC5160_TPOWERDOWN, 0x0000000A);      // 10 * 2^18 clock cycles
     tmc5160_writeRegister(icID_, TMC5160_TPWMTHRS, 0x000001F4);        // TPWM_THRS=500
