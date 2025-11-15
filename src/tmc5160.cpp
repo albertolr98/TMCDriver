@@ -8,10 +8,10 @@ extern "C" {
     #include "tmc/ic/TMC5160/TMC5160_HW_Abstraction.h"
 }
 
+#include <cmath>
 #include <cstdio>
 #include <gpiod.h>
 #include <iostream>
-#include <cmath>
 
 // Pin activo en bajo: EN=0 → habilitado
 bool TMC5160::enableDriver(bool state)
@@ -54,12 +54,13 @@ bool TMC5160::init()
     tmc5160_writeRegister(icID_, TMC5160_GCONF, 0x00000000); // Reset a valores por defecto
     tmc5160_writeRegister(icID_, TMC5160_GSTAT, 0x00000007); // Limpiar flags de estado
 
-    // Reconfigurar registros principales
-    tmc5160_writeRegister(icID_, TMC5160_GCONF, 0x00000004); // Enable StealthChop
-    tmc5160_writeRegister(icID_, TMC5160_CHOPCONF, 0x00100C3);
-    tmc5160_writeRegister(icID_, TMC5160_IHOLD_IRUN, 0x00061403); // IHOLD=10, IRUN=31, IHOLDDELAY=6
-    tmc5160_writeRegister(icID_, TMC5160_TPOWERDOWN, 0x0000000A); // TPOWERDOWN=10
-    tmc5160_writeRegister(icID_, TMC5160_TPWMTHRS, 0x000001F4); // TPWM_THRS=500
+    // Reconfigurar registros principales para un motor NEMA17 de 2.5A RMS
+    tmc5160_writeRegister(icID_, TMC5160_GCONF, 0x00000004);           // StealthChop + interpolation
+    tmc5160_writeRegister(icID_, TMC5160_CHOPCONF, 0x10410153);        // SpreadCycle, MRES=256, vsense=0 (325mV)
+    tmc5160_writeRegister(icID_, TMC5160_PWMCONF, 0xC40C001E);         // Ajustes StealthChop por defecto
+    tmc5160_writeRegister(icID_, TMC5160_IHOLD_IRUN, 0x00061908);      // IHOLD=8 (~0.87A), IRUN=25 (~2.5A), IHOLDDELAY=6
+    tmc5160_writeRegister(icID_, TMC5160_TPOWERDOWN, 0x0000000A);      // 10 * 2^18 clock cycles
+    tmc5160_writeRegister(icID_, TMC5160_TPWMTHRS, 0x000001F4);        // TPWM_THRS=500
     tmc5160_writeRegister(icID_, TMC5160_A1, 500); // A1=500
     tmc5160_writeRegister(icID_, TMC5160_V1, 5000); // V1=5000
     tmc5160_writeRegister(icID_, TMC5160_AMAX, 500); // AMAX=500
