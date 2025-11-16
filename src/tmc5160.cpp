@@ -13,6 +13,18 @@ extern "C" {
 #include <gpiod.h>
 #include <iostream>
 
+namespace
+{
+constexpr double kStepsPerRev = 200.0;            // 1.8° per step
+constexpr double kMicrostepsPerStep = 256.0;      // CHOPCONF MRES=0
+constexpr double kMicrostepsPerRev = kStepsPerRev * kMicrostepsPerStep;
+constexpr double kTau = 6.28318530717958647692;   // 2 * pi
+constexpr double kMicrostepToRad = kTau / kMicrostepsPerRev;
+constexpr double kTmc5160ClockHz = 12'000'000.0;  // Datasheet fCLK
+constexpr double kVelocityTimeUnit =
+  static_cast<double>(1u << 24) / kTmc5160ClockHz;  // µsteps/s -> register factor
+}  // namespace
+
 // Pin activo en bajo: EN=0 → habilitado
 bool TMC5160::enableDriver(bool state)
 {
@@ -77,17 +89,12 @@ bool TMC5160::setSpeed(int motor_id, float rpm)
 {
     (void)motor_id;
     // Convert RPM to VMAX (microsteps per second) using motor and driver settings.
-    // Init config sets CHOPCONF with MRES=0 (native 256 microsteps), and motor is 1.8° => 200 steps/rev.
-    const unsigned steps_per_rev = 200; // 1.8° per step
-    const unsigned microsteps = 256;    // MRES=0 => native 256 µsteps/step in CHOPCONF used in init()
-    constexpr double tmc5160_clock_hz = 12'000'000.0; // Datasheet: internal clock fCLK = 12 MHz
-    constexpr double velocity_time_unit = static_cast<double>(1u << 24) / tmc5160_clock_hz;
     // VMAX units are µsteps/t where t = 2^24 / fCLK. Multiply desired µsteps/s by t to match register units.
 
-    const double microsteps_per_rev = static_cast<double>(steps_per_rev) * static_cast<double>(microsteps);
     const bool negative_dir = rpm < 0.0f;
-    const double microsteps_per_second = (std::fabs(static_cast<double>(rpm)) * microsteps_per_rev) / 60.0;
-    double vmax_d = microsteps_per_second * velocity_time_unit;
+    const double microsteps_per_second =
+      (std::fabs(static_cast<double>(rpm)) * kMicrostepsPerRev) / 60.0;
+    double vmax_d = microsteps_per_second * kVelocityTimeUnit;
     // clamp to allowed range (register expects positive magnitude)
     if (vmax_d > static_cast<double>(TMC5160_MAX_VELOCITY)) vmax_d = static_cast<double>(TMC5160_MAX_VELOCITY);
 
@@ -105,9 +112,18 @@ bool TMC5160::setSpeed(int motor_id, float rpm)
 float TMC5160::readPosition(int motor_id)
 {
     (void)motor_id;
-    int32_t pos = 0;
-    pos = tmc5160_readRegister(icID_, TMC5160_XACTUAL);
-    return static_cast<float>(pos);
+    const int32_t pos = tmc5160_readRegister(icID_, TMC5160_XACTUAL);
+    const double radians = static_cast<double>(pos) * kMicrostepToRad;
+    return static_cast<float>(radians);
+}
+
+float TMC5160::readSpeed(int motor_id)
+{
+    (void)motor_id;
+    const int32_t vel = tmc5160_readRegister(icID_, TMC5160_VACTUAL);
+    const double microsteps_per_second = static_cast<double>(vel) / kVelocityTimeUnit;
+    const double rad_per_second = microsteps_per_second * kMicrostepToRad;
+    return static_cast<float>(rad_per_second);
 }
 
 bool TMC5160::checkComms(const char* label)

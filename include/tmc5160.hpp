@@ -8,6 +8,7 @@ public:
     bool init() override;
     bool setSpeed(int motor_id, float rpm) override;
     float readPosition(int motor_id) override;
+    float readSpeed(int motor_id) override;
     bool checkComms(const char* label) override;
     void shutdown() override;
     uint16_t icID() const { return icID_; }
