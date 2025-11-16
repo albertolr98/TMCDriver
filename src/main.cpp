@@ -3,7 +3,10 @@
 #include "spi_bus.hpp"
 
 #include <array>
+#include <chrono>
+#include <cstdint>
 #include <cstdio>
+#include <thread>
 #include <utility>
 
 
@@ -36,16 +39,27 @@ int main()
         const bool ok = drv->checkComms(label);
         std::printf("[%s] Resultado comunicación: %s\n", label, ok ? "OK" : "FALLO");
     }
-    uint8_t pos;
+    int32_t pos;
 
     for (auto& [label, drv] : drivers) {
         pos = drv->readPosition(0);
         std::printf("[%s] Posición leída: %d\n", label, pos);
     }
 
-    for (auto& [label, drv] : drivers) {
-        drv->setSpeed(0, 30.0f);  // 30 RPM
-        std::printf("[%s] Velocidad establecida a 30 RPM\n", label);
+    // DRV2 speed to 10 rpm 
+    drv2.setSpeed(0, 10.0f);
+    // DRV3 speed to -15 rpm
+    drv3.setSpeed(0, -15.0f);
+    // DRV4 speed to 20 rpm
+    drv4.setSpeed(0, 20.0f);
+
+
+    while (true) {
+        for (auto& [label, drv] : drivers) {
+            pos = drv->readPosition(0);
+            std::printf("[%s] Posición leída: %d\n", label, pos);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
     SPIBus::close();

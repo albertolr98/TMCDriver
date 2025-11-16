@@ -57,7 +57,7 @@ bool TMC5160::init()
     // Reconfigurar registros principales para un motor NEMA17 de 2.5A RMS
     tmc5160_writeRegister(icID_, TMC5160_GCONF, 0x00000004);           // StealthChop + interpolation
     tmc5160_writeRegister(icID_, TMC5160_CHOPCONF, 0x000100C3);        // SpreadCycle base (16 µsteps) for suavidad
-    tmc5160_writeRegister(icID_, TMC5160_IHOLD_IRUN, 0x00061908);      // IHOLD=8 (~0.87A), IRUN=25 (~2.5A), IHOLDDELAY=6
+    tmc5160_writeRegister(icID_, TMC5160_IHOLD_IRUN, 0x00061406);      // IHOLD=6 (~0.65A), IRUN=20 (~2.0A), IHOLDDELAY=6
     tmc5160_writeRegister(icID_, TMC5160_TPOWERDOWN, 0x0000000A);      // 10 * 2^18 clock cycles
     tmc5160_writeRegister(icID_, TMC5160_TPWMTHRS, 0x000001F4);        // TPWM_THRS=500
     tmc5160_writeRegister(icID_, TMC5160_A1, 500); // A1=500
@@ -85,13 +85,19 @@ bool TMC5160::setSpeed(int motor_id, float rpm)
     // VMAX units are µsteps/t where t = 2^24 / fCLK. Multiply desired µsteps/s by t to match register units.
 
     const double microsteps_per_rev = static_cast<double>(steps_per_rev) * static_cast<double>(microsteps);
-    const double microsteps_per_second = (static_cast<double>(rpm) * microsteps_per_rev) / 60.0;
+    const bool negative_dir = rpm < 0.0f;
+    const double microsteps_per_second = (std::fabs(static_cast<double>(rpm)) * microsteps_per_rev) / 60.0;
     double vmax_d = microsteps_per_second * velocity_time_unit;
-    // clamp to allowed range
+    // clamp to allowed range (register expects positive magnitude)
     if (vmax_d > static_cast<double>(TMC5160_MAX_VELOCITY)) vmax_d = static_cast<double>(TMC5160_MAX_VELOCITY);
-    if (vmax_d < -static_cast<double>(TMC5160_MAX_VELOCITY)) vmax_d = -static_cast<double>(TMC5160_MAX_VELOCITY);
 
     int32_t vmax = static_cast<int32_t>(std::lround(vmax_d));
+    uint8_t rampMode = TMC5160_MODE_HOLD;
+    if (vmax > 0) {
+        rampMode = negative_dir ? TMC5160_MODE_VELNEG : TMC5160_MODE_VELPOS;
+    }
+
+    tmc5160_writeRegister(icID_, TMC5160_RAMPMODE, rampMode);
     tmc5160_writeRegister(icID_, TMC5160_VMAX, vmax);
     return true;
 }
