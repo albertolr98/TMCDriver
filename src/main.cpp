@@ -3,16 +3,70 @@
 #include "spi_bus.hpp"
 
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <cstdio>
 #include <thread>
 #include <utility>
 
+namespace {
+std::atomic<bool> g_shouldStop{false};
+
+void handleSigint(int)
+{
+    g_shouldStop.store(true);
+}
+
+void runHardcodedSquare(const std::array<std::pair<const char*, TMCDriver*>, 4>& drivers)
+{
+    struct Segment {
+        float drv2_rpm;
+        float drv3_rpm;
+        float drv4_rpm;
+        std::chrono::milliseconds duration;
+        const char* description;
+    };
+
+    const std::array<Segment, 4> pattern = {{
+        { 10.0f,  10.0f,   0.0f, std::chrono::milliseconds(1500), "Segmento 1: adelante"},
+        {  5.0f, -10.0f,  10.0f, std::chrono::milliseconds(1500), "Segmento 2: derecha"},
+        {-10.0f, -10.0f,   0.0f, std::chrono::milliseconds(1500), "Segmento 3: atrás"},
+        { -5.0f,  10.0f, -10.0f, std::chrono::milliseconds(1500), "Segmento 4: izquierda"},
+    }};
+
+    while (!g_shouldStop.load()) {
+        for (const auto& segment : pattern) {
+            if (g_shouldStop.load()) break;
+
+            drivers[1].second->setSpeed(0, segment.drv2_rpm);
+            drivers[2].second->setSpeed(0, segment.drv3_rpm);
+            drivers[3].second->setSpeed(0, segment.drv4_rpm);
+            std::printf("%s | v2=%.1f rpm, v3=%.1f rpm, v4=%.1f rpm\n",
+                        segment.description, segment.drv2_rpm, segment.drv3_rpm, segment.drv4_rpm);
+
+            const auto start = std::chrono::steady_clock::now();
+            while (!g_shouldStop.load()) {
+                const auto elapsed = std::chrono::steady_clock::now() - start;
+                if (elapsed >= segment.duration) break;
+
+                for (auto& [label, drv] : drivers) {
+                    const auto pos = drv->readPosition(0);
+                    std::printf("[%s] Posición leída: %.2f\n", label, pos);
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+        }
+    }
+}
+}  // namespace
 
 
 int main()
 {
+    std::signal(SIGINT, handleSigint);
+
     if (!SPIBus::init("/dev/spidev0.0", 1000000)) {
         std::perror("SPIBus::init");
         return 1;
@@ -39,27 +93,17 @@ int main()
         const bool ok = drv->checkComms(label);
         std::printf("[%s] Resultado comunicación: %s\n", label, ok ? "OK" : "FALLO");
     }
-    int32_t pos;
-
     for (auto& [label, drv] : drivers) {
-        pos = drv->readPosition(0);
-        std::printf("[%s] Posición leída: %d\n", label, pos);
+        const auto pos = drv->readPosition(0);
+        std::printf("[%s] Posición leída: %.2f\n", label, pos);
     }
 
-    // DRV2 speed to 10 rpm 
-    drv2.setSpeed(0, 10.0f);
-    // DRV3 speed to -15 rpm
-    drv3.setSpeed(0, -15.0f);
-    // DRV4 speed to 20 rpm
-    drv4.setSpeed(0, 20.0f);
+    runHardcodedSquare(drivers);
 
-
-    while (true) {
-        for (auto& [label, drv] : drivers) {
-            pos = drv->readPosition(0);
-            std::printf("[%s] Posición leída: %d\n", label, pos);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    for (auto& [label, drv] : drivers) {
+        drv->setSpeed(0, 0.0f);
+        drv->shutdown();
+        std::printf("[%s] Driver deshabilitado\n", label);
     }
 
     SPIBus::close();

@@ -135,6 +135,15 @@ bool TMC5160::checkComms(const char* label)
     return versionOk && vmaxEchoOk;
 }
 
+void TMC5160::shutdown()
+{
+    // Ensure motion stops before disabling outputs.
+    tmc5160_writeRegister(icID_, TMC5160_RAMPMODE, TMC5160_MODE_HOLD);
+    tmc5160_writeRegister(icID_, TMC5160_VMAX, 0);
+    enableDriver(false);
+    std::cout << "TMC5160 detenido (CS=" << cs_pin_ << ", EN=" << en_pin_ << ")\n";
+}
+
 
 // Librerías para TMC-API
 extern "C" void tmc5160_readWriteSPI(uint16_t icID, uint8_t* data, size_t length)
